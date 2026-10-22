@@ -5,9 +5,6 @@ import datetime
 sqs_client = boto3.client("sqs")
 
 def lambda_handler(event, context):
-  import json
-import datetime
-import boto3
 
 sqs_client = boto3.client("sqs", region_name="us-east-1")
 
