@@ -1,0 +1,43 @@
+{
+  "Comment": "A description of my state machine",
+  "StartAt": "CreateBucket",
+  "States": {
+    "CreateBucket": {
+      "Type": "Task",
+      "Arguments": {
+        "Bucket": "naem-s3-bucket-using-stepfunctions"
+      },
+      "Resource": "arn:aws:states:::aws-sdk:s3:createBucket",
+      "Next": "Lambda Invoke"
+    },
+    "Lambda Invoke": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Output": "{% $states.result.Payload %}",
+      "Arguments": {
+        "Payload": "{% $states.input %}",
+        "FunctionName": "arn:aws:lambda:us-east-1:026343683315:function:lambdaFunctionToInsertDataToDynamoDBAndSendSQS:$LATEST"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Next": "Success"
+    },
+    "Success": {
+      "Type": "Succeed",
+      "Comment": "Created S3 bucket and invoked Lambda function using Step function"
+    }
+  },
+  "QueryLanguage": "JSONata"
+}
