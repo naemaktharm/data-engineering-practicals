@@ -1,0 +1,133 @@
+Comment: A description of my state machine
+StartAt: Choice
+States:
+  Choice:
+    Type: Choice
+    Choices:
+      - Next: CreateBucket for JSON file
+        Variable: $.type
+        StringMatches: json
+      - Next: CreateBucket for CSV file
+        Variable: $.type
+        StringMatches: csv
+  CreateBucket for JSON file:
+    Type: Task
+    Parameters:
+      Bucket: s3-bucket-from-stepfunction-json
+    Resource: arn:aws:states:::aws-sdk:s3:createBucket
+    Next: Wait after S3 JSON
+  Wait after S3 JSON:
+    Type: Wait
+    Seconds: 20
+    Next: CreateTable using JSON
+  CreateTable using JSON:
+    Type: Task
+    Parameters:
+      TableName: employee_table_from_stepfunction_json
+      AttributeDefinitions:
+        - AttributeName: employee_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: employee_id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+    Resource: arn:aws:states:::aws-sdk:dynamodb:createTable
+    Next: Wait after JSON DynamoDB Table
+  Wait after JSON DynamoDB Table:
+    Type: Wait
+    Seconds: 20
+    Next: Lambda Invoke JSON handler
+  Lambda Invoke JSON handler:
+    Type: Task
+    Resource: arn:aws:states:::lambda:invoke
+    OutputPath: $.Payload
+    Parameters:
+      Payload.$: $
+      FunctionName: >-
+        arn:aws:lambda:us-east-1:026343683315:function:lambdaInvokeFromStepFunctionJSON:$LATEST
+    Retry:
+      - ErrorEquals:
+          - Lambda.ServiceException
+          - Lambda.AWSLambdaException
+          - Lambda.SdkClientException
+          - Lambda.TooManyRequestsException
+        IntervalSeconds: 1
+        MaxAttempts: 3
+        BackoffRate: 2
+        JitterStrategy: FULL
+    Next: Wait JSON Lambda Handler
+  Wait JSON Lambda Handler:
+    Type: Wait
+    Seconds: 5
+    Next: SQS SendMessage after Table Updated using JSON
+  SQS SendMessage after Table Updated using JSON:
+    Type: Task
+    Resource: arn:aws:states:::sqs:sendMessage
+    Parameters:
+      MessageBody.$: $
+      QueueUrl: >-
+        https://sqs.us-east-1.amazonaws.com/026343683315/SQSCSVQueueInStepFunction
+    Next: JSON table success
+  JSON table success:
+    Type: Succeed
+  CreateBucket for CSV file:
+    Type: Task
+    Parameters:
+      Bucket: s3-bucket-from-stepfunction-csv
+    Resource: arn:aws:states:::aws-sdk:s3:createBucket
+    Next: Wait after S3 CSV
+  Wait after S3 CSV:
+    Type: Wait
+    Seconds: 20
+    Next: CreateTable using CSV
+  CreateTable using CSV:
+    Type: Task
+    Parameters:
+      TableName: employee_table_from_stepfunction_csv
+      AttributeDefinitions:
+        - AttributeName: employee_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: employee_id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+    Resource: arn:aws:states:::aws-sdk:dynamodb:createTable
+    Next: Wait after CSV Dynamo DB Table
+  Wait after CSV Dynamo DB Table:
+    Type: Wait
+    Seconds: 20
+    Next: Lambda Invoke
+  Lambda Invoke:
+    Type: Task
+    Resource: arn:aws:states:::lambda:invoke
+    OutputPath: $.Payload
+    Parameters:
+      Payload.$: $
+      FunctionName: >-
+        arn:aws:lambda:us-east-1:026343683315:function:lambdaInvokeFromStepFunction:$LATEST
+    Retry:
+      - ErrorEquals:
+          - Lambda.ServiceException
+          - Lambda.AWSLambdaException
+          - Lambda.SdkClientException
+          - Lambda.TooManyRequestsException
+        IntervalSeconds: 1
+        MaxAttempts: 3
+        BackoffRate: 2
+        JitterStrategy: FULL
+    Next: Wait after CSV Lambda Handler
+  Wait after CSV Lambda Handler:
+    Type: Wait
+    Seconds: 5
+    Next: SQS SendMessage after Table Updated using CSV
+  SQS SendMessage after Table Updated using CSV:
+    Type: Task
+    Resource: arn:aws:states:::sqs:sendMessage
+    Parameters:
+      MessageBody.$: $
+      QueueUrl: >-
+        https://sqs.us-east-1.amazonaws.com/026343683315/SQSCSVQueueInStepFunction
+    Next: CSV table success
+  CSV table success:
+    Type: Succeed
+QueryLanguage: JSONPath
